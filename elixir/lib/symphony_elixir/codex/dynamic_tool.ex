@@ -7,7 +7,8 @@ defmodule SymphonyElixir.Codex.DynamicTool do
 
   @linear_graphql_tool "linear_graphql"
   @linear_graphql_description """
-  Execute a raw GraphQL query or mutation against Linear using Symphony's configured auth.
+  Execute a raw GraphQL query or mutation against Linear using Symphony's configured Linear auth.
+  Use this for Linear issue, workflow-state, and comment operations when the tracker is Linear.
   """
   @linear_graphql_input_schema %{
     "type" => "object",
@@ -28,6 +29,8 @@ defmodule SymphonyElixir.Codex.DynamicTool do
   @github_issue_tool "github_issue"
   @github_issue_description """
   Execute structured GitHub issue and project operations using Symphony's configured GitHub auth.
+  Supported operations: get issue, list comments, upsert workpad comment, set project status,
+  and add labels. Available when Symphony is configured for a GitHub tracker.
   """
   @github_issue_input_schema %{
     "type" => "object",
@@ -64,7 +67,9 @@ defmodule SymphonyElixir.Codex.DynamicTool do
   }
   @github_pr_tool "github_pr"
   @github_pr_description """
-  Execute structured GitHub pull request operations using Symphony's configured GitHub auth.
+  Execute structured GitHub pull request read/create operations using Symphony's configured GitHub auth.
+  Supported operations: list PRs for a branch head, get PR details, create a PR, list PR issue
+  comments, list reviews, list inline review comments, and get check status.
   """
   @github_pr_input_schema %{
     "type" => "object",
