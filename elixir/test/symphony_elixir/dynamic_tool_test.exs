@@ -735,6 +735,34 @@ defmodule SymphonyElixir.Codex.DynamicToolTest do
            }
   end
 
+  test "github_pr preserves draft false when creating a ready-for-review pull request" do
+    test_pid = self()
+
+    response =
+      DynamicTool.execute(
+        "github_pr",
+        %{
+          "operation" => "create_pr",
+          "headRefName" => "feature/test-branch",
+          "baseRefName" => "main",
+          "title" => "Ready PR",
+          "body" => "Summary",
+          "draft" => false
+        },
+        tracker_kind: "github",
+        github_create_pull_request: fn head_ref_name, base_ref_name, title, body, draft ->
+          send(test_pid, {:github_create_pull_request_called, head_ref_name, base_ref_name, title, body, draft})
+          {:ok, %{"number" => 12, "title" => title, "isDraft" => draft}}
+        end
+      )
+
+    assert_received {:github_create_pull_request_called, "feature/test-branch", "main", "Ready PR", "Summary", false}
+
+    assert Jason.decode!(response["output"]) == %{
+             "pullRequest" => %{"isDraft" => false, "number" => 12, "title" => "Ready PR"}
+           }
+  end
+
   test "github_pr validates required arguments" do
     missing_operation =
       DynamicTool.execute(

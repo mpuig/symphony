@@ -443,6 +443,14 @@ defmodule SymphonyElixir.WorkspaceAndConfigTest do
     assert issue.identifier == "your-org/your-repo#42"
   end
 
+  test "github client derives REST base URLs for dotcom and enterprise GraphQL endpoints" do
+    assert GitHubClient.rest_api_base_url_for_test("https://api.github.com/graphql") ==
+             "https://api.github.com"
+
+    assert GitHubClient.rest_api_base_url_for_test("https://ghe.example.com/api/graphql") ==
+             "https://ghe.example.com/api/v3"
+  end
+
   test "linear client pagination merge helper preserves issue ordering" do
     issue_page_1 = [
       %Issue{id: "issue-1", identifier: "MT-1"},

@@ -537,7 +537,7 @@ defmodule SymphonyElixir.Codex.DynamicTool do
   end
 
   defp normalize_github_pr_draft(arguments) do
-    case Map.get(arguments, "draft") || Map.get(arguments, :draft) do
+    case argument_value(arguments, "draft", :draft) do
       draft when is_boolean(draft) -> draft
       _ -> true
     end
@@ -828,6 +828,14 @@ defmodule SymphonyElixir.Codex.DynamicTool do
 
   defp format_datetime(%DateTime{} = datetime), do: DateTime.to_iso8601(datetime)
   defp format_datetime(_datetime), do: nil
+
+  defp argument_value(arguments, string_key, atom_key) when is_map(arguments) do
+    cond do
+      Map.has_key?(arguments, string_key) -> Map.get(arguments, string_key)
+      Map.has_key?(arguments, atom_key) -> Map.get(arguments, atom_key)
+      true -> nil
+    end
+  end
 
   defp tool_error_payload(:missing_query) do
     %{

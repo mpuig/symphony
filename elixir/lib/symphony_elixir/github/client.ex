@@ -1008,12 +1008,44 @@ defmodule SymphonyElixir.GitHub.Client do
   defp normalize_combined_status(_payload), do: %{"state" => nil, "statuses" => []}
 
   defp rest_api_base_url do
-    endpoint = Config.settings!().tracker.endpoint || "https://api.github.com/graphql"
+    tracker_endpoint = Config.settings!().tracker.endpoint || "https://api.github.com/graphql"
+    rest_api_base_url_for_endpoint(tracker_endpoint)
+  end
 
-    if String.ends_with?(endpoint, "/graphql") do
-      String.replace_suffix(endpoint, "/graphql", "")
-    else
-      "https://api.github.com"
+  @doc false
+  @spec rest_api_base_url_for_test(String.t()) :: String.t()
+  def rest_api_base_url_for_test(endpoint) when is_binary(endpoint) do
+    rest_api_base_url_for_endpoint(endpoint)
+  end
+
+  defp rest_api_base_url_for_endpoint(endpoint) when is_binary(endpoint) do
+    case URI.parse(endpoint) do
+      %URI{scheme: scheme, host: host} = uri when is_binary(scheme) and is_binary(host) ->
+        path = uri.path || ""
+
+        normalized_path =
+          cond do
+            String.ends_with?(path, "/api/graphql") ->
+              String.replace_suffix(path, "/api/graphql", "/api/v3")
+
+            path == "/graphql" ->
+              ""
+
+            String.ends_with?(path, "/graphql") ->
+              String.replace_suffix(path, "/graphql", "")
+
+            true ->
+              path
+          end
+
+        uri
+        |> Map.put(:path, normalized_path)
+        |> Map.put(:query, nil)
+        |> Map.put(:fragment, nil)
+        |> URI.to_string()
+
+      _ ->
+        "https://api.github.com"
     end
   end
 

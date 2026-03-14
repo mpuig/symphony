@@ -12,13 +12,21 @@ defmodule SymphonyElixir.AppServerTest do
       workspace_root = Path.join(test_root, "workspaces")
       workspace = Path.join(workspace_root, "MT-1002")
       codex_binary = Path.join(test_root, "fake-codex")
+      fake_shell = Path.join(test_root, "fake-shell")
       previous_fake_codex = System.get_env("SYMP_TEST_FAKE_CODEX")
+      previous_shell = System.get_env("SHELL")
 
       on_exit(fn ->
         if is_binary(previous_fake_codex) do
           System.put_env("SYMP_TEST_FAKE_CODEX", previous_fake_codex)
         else
           System.delete_env("SYMP_TEST_FAKE_CODEX")
+        end
+
+        if is_binary(previous_shell) do
+          System.put_env("SHELL", previous_shell)
+        else
+          System.delete_env("SHELL")
         end
       end)
 
@@ -54,6 +62,9 @@ defmodule SymphonyElixir.AppServerTest do
       """)
 
       File.chmod!(codex_binary, 0o755)
+      File.write!(fake_shell, "#!/bin/sh\nexit 97\n")
+      File.chmod!(fake_shell, 0o755)
+      System.put_env("SHELL", fake_shell)
 
       write_workflow_file!(Workflow.workflow_file_path(),
         workspace_root: workspace_root,

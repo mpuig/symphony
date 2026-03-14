@@ -1086,13 +1086,7 @@ defmodule SymphonyElixir.Codex.AppServer do
   end
 
   defp local_shell_executable do
-    case System.get_env("SHELL") do
-      shell when is_binary(shell) and shell != "" ->
-        if File.regular?(shell), do: {:ok, shell}, else: fallback_local_shell()
-
-      _ ->
-        fallback_local_shell()
-    end
+    fallback_local_shell()
   end
 
   defp fallback_local_shell do
