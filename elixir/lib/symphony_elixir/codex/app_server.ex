@@ -187,11 +187,7 @@ defmodule SymphonyElixir.Codex.AppServer do
   end
 
   defp start_port(workspace, nil) do
-    executable = System.find_executable("bash")
-
-    if is_nil(executable) do
-      {:error, :bash_not_found}
-    else
+    with {:ok, executable, args} <- local_codex_command() do
       port =
         Port.open(
           {:spawn_executable, String.to_charlist(executable)},
@@ -199,7 +195,7 @@ defmodule SymphonyElixir.Codex.AppServer do
             :binary,
             :exit_status,
             :stderr_to_stdout,
-            args: [~c"-lc", String.to_charlist(Config.settings!().codex.command)],
+            args: Enum.map(args, &String.to_charlist/1),
             cd: String.to_charlist(workspace),
             line: @port_line_bytes
           ]
@@ -1084,4 +1080,22 @@ defmodule SymphonyElixir.Codex.AppServer do
   end
 
   defp needs_input_field?(_payload), do: false
+
+  defp local_codex_command do
+    try do
+      case OptionParser.split(Config.settings!().codex.command) do
+        [command | args] ->
+          case System.find_executable(command) do
+            nil -> {:error, {:codex_command_not_found, command}}
+            executable -> {:ok, executable, args}
+          end
+
+        [] ->
+          {:error, :invalid_codex_command}
+      end
+    rescue
+      error ->
+        {:error, {:invalid_codex_command, Exception.message(error)}}
+    end
+  end
 end

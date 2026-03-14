@@ -428,14 +428,41 @@ defmodule SymphonyElixir.AppServerTest do
 
                  payload["id"] == 2 and
                    case get_in(payload, ["params", "dynamicTools"]) do
-                     [
-                       %{
-                         "description" => description,
-                         "inputSchema" => %{"required" => ["query"]},
-                         "name" => "linear_graphql"
-                       }
-                     ] ->
-                       description =~ "Linear"
+                     dynamic_tools when is_list(dynamic_tools) ->
+                       Enum.any?(dynamic_tools, fn
+                         %{
+                           "description" => description,
+                           "inputSchema" => %{"required" => ["query"]},
+                           "name" => "linear_graphql"
+                         } ->
+                           description =~ "Linear"
+
+                         _ ->
+                           false
+                       end) and
+                         Enum.any?(dynamic_tools, fn
+                           %{
+                             "description" => description,
+                             "inputSchema" => %{"required" => ["operation", "issueId"]},
+                             "name" => "github_issue"
+                           } ->
+                             description =~ "GitHub"
+
+                           _ ->
+                             false
+                         end)
+                         and
+                         Enum.any?(dynamic_tools, fn
+                           %{
+                             "description" => description,
+                             "inputSchema" => %{"required" => ["operation"]},
+                             "name" => "github_pr"
+                           } ->
+                             description =~ "GitHub pull request"
+
+                           _ ->
+                             false
+                         end)
 
                      _ ->
                        false
