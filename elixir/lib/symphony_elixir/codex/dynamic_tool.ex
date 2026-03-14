@@ -3,7 +3,7 @@ defmodule SymphonyElixir.Codex.DynamicTool do
   Executes client-side tool calls requested by Codex app-server turns.
   """
 
-  alias SymphonyElixir.{Config, GitHub, Linear}
+  alias SymphonyElixir.{Config, GitHub, Linear, PullRequest}
 
   @linear_graphql_tool "linear_graphql"
   @linear_graphql_description """
@@ -200,36 +200,36 @@ defmodule SymphonyElixir.Codex.DynamicTool do
 
   defp execute_github_pr(arguments, opts) do
     github_list_pull_requests_for_head =
-      Keyword.get(opts, :github_list_pull_requests_for_head, &GitHub.Client.list_pull_requests_for_head/1)
+      Keyword.get(opts, :github_list_pull_requests_for_head, &PullRequest.list_for_head/1)
 
     github_get_pull_request =
-      Keyword.get(opts, :github_get_pull_request, &GitHub.Client.get_pull_request/1)
+      Keyword.get(opts, :github_get_pull_request, &PullRequest.get/1)
 
     github_create_pull_request =
-      Keyword.get(opts, :github_create_pull_request, &GitHub.Client.create_pull_request/5)
+      Keyword.get(opts, :github_create_pull_request, &PullRequest.create/5)
 
     github_list_pull_request_issue_comments =
       Keyword.get(
         opts,
         :github_list_pull_request_issue_comments,
-        &GitHub.Client.list_pull_request_issue_comments/1
+        &PullRequest.list_issue_comments/1
       )
 
     github_list_pull_request_reviews =
-      Keyword.get(opts, :github_list_pull_request_reviews, &GitHub.Client.list_pull_request_reviews/1)
+      Keyword.get(opts, :github_list_pull_request_reviews, &PullRequest.list_reviews/1)
 
     github_list_pull_request_review_comments =
       Keyword.get(
         opts,
         :github_list_pull_request_review_comments,
-        &GitHub.Client.list_pull_request_review_comments/1
+        &PullRequest.list_review_comments/1
       )
 
     github_get_pull_request_check_status =
       Keyword.get(
         opts,
         :github_get_pull_request_check_status,
-        &GitHub.Client.get_pull_request_check_status/1
+        &PullRequest.get_check_status/1
       )
 
     with :ok <- validate_github_tracker(opts),
