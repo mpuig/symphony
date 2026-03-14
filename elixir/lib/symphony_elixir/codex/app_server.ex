@@ -187,7 +187,7 @@ defmodule SymphonyElixir.Codex.AppServer do
   end
 
   defp start_port(workspace, nil) do
-    with {:ok, executable, args} <- local_codex_command() do
+    with {:ok, executable} <- local_shell_executable() do
       port =
         Port.open(
           {:spawn_executable, String.to_charlist(executable)},
@@ -195,7 +195,7 @@ defmodule SymphonyElixir.Codex.AppServer do
             :binary,
             :exit_status,
             :stderr_to_stdout,
-            args: Enum.map(args, &String.to_charlist/1),
+            args: [~c"-lc", String.to_charlist(local_launch_command())],
             cd: String.to_charlist(workspace),
             line: @port_line_bytes
           ]
@@ -1081,21 +1081,30 @@ defmodule SymphonyElixir.Codex.AppServer do
 
   defp needs_input_field?(_payload), do: false
 
-  defp local_codex_command do
-    try do
-      case OptionParser.split(Config.settings!().codex.command) do
-        [command | args] ->
-          case System.find_executable(command) do
-            nil -> {:error, {:codex_command_not_found, command}}
-            executable -> {:ok, executable, args}
-          end
+  defp local_launch_command do
+    "exec #{Config.settings!().codex.command}"
+  end
 
-        [] ->
-          {:error, :invalid_codex_command}
-      end
-    rescue
-      error ->
-        {:error, {:invalid_codex_command, Exception.message(error)}}
+  defp local_shell_executable do
+    case System.get_env("SHELL") do
+      shell when is_binary(shell) and shell != "" ->
+        if File.regular?(shell), do: {:ok, shell}, else: fallback_local_shell()
+
+      _ ->
+        fallback_local_shell()
+    end
+  end
+
+  defp fallback_local_shell do
+    case System.find_executable("bash") do
+      nil ->
+        case System.find_executable("sh") do
+          nil -> {:error, :shell_not_found}
+          shell -> {:ok, shell}
+        end
+
+      shell ->
+        {:ok, shell}
     end
   end
 end

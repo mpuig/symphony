@@ -1,6 +1,81 @@
 defmodule SymphonyElixir.AppServerTest do
   use SymphonyElixir.TestSupport
 
+  test "app server preserves shell-style codex.command semantics for local runs" do
+    test_root =
+      Path.join(
+        System.tmp_dir!(),
+        "symphony-elixir-app-server-shell-command-#{System.unique_integer([:positive])}"
+      )
+
+    try do
+      workspace_root = Path.join(test_root, "workspaces")
+      workspace = Path.join(workspace_root, "MT-1002")
+      codex_binary = Path.join(test_root, "fake-codex")
+      previous_fake_codex = System.get_env("SYMP_TEST_FAKE_CODEX")
+
+      on_exit(fn ->
+        if is_binary(previous_fake_codex) do
+          System.put_env("SYMP_TEST_FAKE_CODEX", previous_fake_codex)
+        else
+          System.delete_env("SYMP_TEST_FAKE_CODEX")
+        end
+      end)
+
+      System.put_env("SYMP_TEST_FAKE_CODEX", codex_binary)
+      File.mkdir_p!(workspace)
+
+      File.write!(codex_binary, """
+      #!/bin/sh
+      count=0
+
+      while IFS= read -r _line; do
+        count=$((count + 1))
+
+        case "$count" in
+          1)
+            printf '%s\\n' '{"id":1,"result":{}}'
+            ;;
+          2)
+            printf '%s\\n' '{"id":2,"result":{"thread":{"id":"thread-shell"}}}'
+            ;;
+          3)
+            printf '%s\\n' '{"id":3,"result":{"turn":{"id":"turn-shell"}}}'
+            ;;
+          4)
+            printf '%s\\n' '{"method":"turn/completed"}'
+            exit 0
+            ;;
+          *)
+            exit 0
+            ;;
+        esac
+      done
+      """)
+
+      File.chmod!(codex_binary, 0o755)
+
+      write_workflow_file!(Workflow.workflow_file_path(),
+        workspace_root: workspace_root,
+        codex_command: "$SYMP_TEST_FAKE_CODEX app-server"
+      )
+
+      issue = %Issue{
+        id: "issue-shell-command",
+        identifier: "MT-1002",
+        title: "Validate shell codex command",
+        description: "Ensure local app-server honors shell expansion",
+        state: "In Progress",
+        url: "https://example.org/issues/MT-1002",
+        labels: ["backend"]
+      }
+
+      assert {:ok, _result} = AppServer.run(workspace, "Validate shell command", issue)
+    after
+      File.rm_rf(test_root)
+    end
+  end
+
   test "app server rejects the workspace root and paths outside workspace root" do
     test_root =
       Path.join(

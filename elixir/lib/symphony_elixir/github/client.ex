@@ -39,6 +39,19 @@ defmodule SymphonyElixir.GitHub.Client do
               login
             }
           }
+          blockedBy(first: 20) {
+            nodes {
+              id
+              number
+              state
+              repository {
+                name
+                owner {
+                  login
+                }
+              }
+            }
+          }
           projectItems(first: 20) {
             nodes {
               id
@@ -100,6 +113,19 @@ defmodule SymphonyElixir.GitHub.Client do
         assignees(first: 20) {
           nodes {
             login
+          }
+        }
+        blockedBy(first: 20) {
+          nodes {
+            id
+            number
+            state
+            repository {
+              name
+              owner {
+                login
+              }
+            }
           }
         }
         projectItems(first: 20) {
@@ -169,6 +195,12 @@ defmodule SymphonyElixir.GitHub.Client do
          assigned_to_worker and MapSet.member?(active_states, normalize_state(state))
        end)}
     end
+  end
+
+  @doc false
+  @spec normalize_issue_for_test(map()) :: Issue.t() | nil
+  def normalize_issue_for_test(issue) when is_map(issue) do
+    normalize_issue(issue)
   end
 
   @spec fetch_issues_by_states([String.t()]) :: {:ok, [Issue.t()]} | {:error, term()}
@@ -536,7 +568,7 @@ defmodule SymphonyElixir.GitHub.Client do
         branch_name: nil,
         url: issue["url"],
         assignee_id: first_assignee_login(assignees),
-        blocked_by: [],
+        blocked_by: extract_blockers(issue, tracker),
         labels: Enum.map(labels, &Map.get(&1, "name")),
         assigned_to_worker: assigned_to_worker?(assignees, tracker.assignee),
         created_at: parse_datetime(issue["createdAt"]),
@@ -571,6 +603,36 @@ defmodule SymphonyElixir.GitHub.Client do
   defp normalize_github_issue_state("CLOSED"), do: "Closed"
   defp normalize_github_issue_state(other) when is_binary(other), do: other
   defp normalize_github_issue_state(_other), do: "Unknown"
+
+  defp extract_blockers(%{"blockedBy" => %{"nodes" => blockers}}, tracker)
+       when is_list(blockers) do
+    Enum.flat_map(blockers, fn
+      %{"number" => number} = blocker when is_integer(number) ->
+        owner =
+          get_in(blocker, ["repository", "owner", "login"]) ||
+            tracker.owner
+
+        repo =
+          get_in(blocker, ["repository", "name"]) ||
+            tracker.repo
+
+        [
+          %{
+            id: blocker_id(blocker, number),
+            identifier: "#{owner}/#{repo}##{number}",
+            state: normalize_github_issue_state(blocker["state"])
+          }
+        ]
+
+      _ ->
+        []
+    end)
+  end
+
+  defp extract_blockers(_issue, _tracker), do: []
+
+  defp blocker_id(%{"id" => id}, _number) when is_binary(id), do: id
+  defp blocker_id(_blocker, number), do: Integer.to_string(number)
 
   defp first_assignee_login([%{"login" => login} | _rest]) when is_binary(login), do: login
   defp first_assignee_login(_assignees), do: nil
