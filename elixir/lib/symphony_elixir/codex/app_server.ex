@@ -187,21 +187,41 @@ defmodule SymphonyElixir.Codex.AppServer do
   end
 
   defp start_port(workspace, nil) do
-    with {:ok, executable} <- local_shell_executable() do
-      port =
-        Port.open(
-          {:spawn_executable, String.to_charlist(executable)},
-          [
-            :binary,
-            :exit_status,
-            :stderr_to_stdout,
-            args: [~c"-lc", String.to_charlist(local_launch_command())],
-            cd: String.to_charlist(workspace),
-            line: @port_line_bytes
-          ]
-        )
+    case local_port_command() do
+      {:ok, {:direct, executable, args}} ->
+        port =
+          Port.open(
+            {:spawn_executable, String.to_charlist(executable)},
+            [
+              :binary,
+              :exit_status,
+              :stderr_to_stdout,
+              args: Enum.map(args, &String.to_charlist/1),
+              cd: String.to_charlist(workspace),
+              line: @port_line_bytes
+            ]
+          )
 
-      {:ok, port}
+        {:ok, port}
+
+      {:ok, {:shell, executable, command}} ->
+        port =
+          Port.open(
+            {:spawn_executable, String.to_charlist(executable)},
+            [
+              :binary,
+              :exit_status,
+              :stderr_to_stdout,
+              args: [~c"-lc", String.to_charlist(command)],
+              cd: String.to_charlist(workspace),
+              line: @port_line_bytes
+            ]
+          )
+
+        {:ok, port}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -1081,12 +1101,74 @@ defmodule SymphonyElixir.Codex.AppServer do
 
   defp needs_input_field?(_payload), do: false
 
-  defp local_launch_command do
-    "exec #{Config.settings!().codex.command}"
+  defp local_port_command do
+    command = Config.settings!().codex.command |> to_string() |> String.trim()
+
+    cond do
+      command == "" ->
+        {:error, :empty_codex_command}
+
+      local_command_requires_shell?(command) ->
+        with {:ok, executable} <- local_shell_executable() do
+          {:ok, {:shell, executable, "exec #{command}"}}
+        end
+
+      true ->
+        case OptionParser.split(command) do
+          [executable | args] ->
+            with {:ok, resolved_executable} <- resolve_local_executable(executable) do
+              {:ok, {:direct, resolved_executable, args}}
+            end
+
+          [] ->
+            {:error, :empty_codex_command}
+        end
+    end
   end
 
   defp local_shell_executable do
     fallback_local_shell()
+  end
+
+  defp local_command_requires_shell?(command) when is_binary(command) do
+    String.contains?(command, [
+      "$",
+      "`",
+      "~",
+      "|",
+      "&",
+      ";",
+      "<",
+      ">",
+      "(",
+      ")",
+      "{",
+      "}",
+      "\n",
+      "\r"
+    ])
+  end
+
+  defp resolve_local_executable(executable) when is_binary(executable) do
+    cond do
+      String.trim(executable) == "" ->
+        {:error, :empty_codex_command}
+
+      String.contains?(executable, "/") ->
+        expanded = Path.expand(executable)
+
+        if File.regular?(expanded) do
+          {:ok, expanded}
+        else
+          {:error, {:executable_not_found, executable}}
+        end
+
+      true ->
+        case System.find_executable(executable) do
+          nil -> {:error, {:executable_not_found, executable}}
+          resolved -> {:ok, resolved}
+        end
+    end
   end
 
   defp fallback_local_shell do

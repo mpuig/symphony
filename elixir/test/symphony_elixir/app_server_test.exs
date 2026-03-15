@@ -87,6 +87,84 @@ defmodule SymphonyElixir.AppServerTest do
     end
   end
 
+  test "app server launches simple local codex.command values without a shell wrapper" do
+    test_root =
+      Path.join(
+        System.tmp_dir!(),
+        "symphony-elixir-app-server-direct-command-#{System.unique_integer([:positive])}"
+      )
+
+    try do
+      workspace_root = Path.join(test_root, "workspaces")
+      workspace = Path.join(workspace_root, "MT-1003")
+      codex_binary = Path.join(test_root, "fake-codex")
+      fake_shell = Path.join(test_root, "fake-shell")
+      previous_shell = System.get_env("SHELL")
+
+      on_exit(fn ->
+        if is_binary(previous_shell) do
+          System.put_env("SHELL", previous_shell)
+        else
+          System.delete_env("SHELL")
+        end
+      end)
+
+      File.mkdir_p!(workspace)
+
+      File.write!(codex_binary, """
+      #!/bin/sh
+      count=0
+
+      while IFS= read -r _line; do
+        count=$((count + 1))
+
+        case "$count" in
+          1)
+            printf '%s\\n' '{"id":1,"result":{}}'
+            ;;
+          2)
+            printf '%s\\n' '{"id":2,"result":{"thread":{"id":"thread-direct"}}}'
+            ;;
+          3)
+            printf '%s\\n' '{"id":3,"result":{"turn":{"id":"turn-direct"}}}'
+            ;;
+          4)
+            printf '%s\\n' '{"method":"turn/completed"}'
+            exit 0
+            ;;
+          *)
+            exit 0
+            ;;
+        esac
+      done
+      """)
+
+      File.chmod!(codex_binary, 0o755)
+      File.write!(fake_shell, "#!/bin/sh\nexit 97\n")
+      File.chmod!(fake_shell, 0o755)
+      System.put_env("SHELL", fake_shell)
+
+      write_workflow_file!(Workflow.workflow_file_path(),
+        workspace_root: workspace_root,
+        codex_command: "#{codex_binary} app-server"
+      )
+
+      issue = %Issue{
+        id: "issue-direct-command",
+        identifier: "MT-1003",
+        title: "Validate direct codex command launch",
+        description: "Ensure app-server avoids the shell when command parsing does not need it",
+        state: "In Progress",
+        url: "https://example.org/issues/MT-1003",
+        labels: ["backend"]
+      }
+
+      assert {:ok, _result} = AppServer.run(workspace, "Validate direct command", issue)
+    after
+      File.rm_rf(test_root)
+    end
+  end
+
   test "app server rejects the workspace root and paths outside workspace root" do
     test_root =
       Path.join(
